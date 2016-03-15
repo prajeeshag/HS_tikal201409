@@ -68,6 +68,10 @@ private
 
    character(len=256) :: equilibrium_t_option = 'Held_Suarez'
    character(len=256) :: equilibrium_t_file='temp'  ! Name of file relative to $work/INPUT  Used only when equilibrium_t_option='from_file'
+
+   logical :: do_slab_heating = .false.
+   real :: slab_heating_rate = 1e-5 ! negative means unit is 1 K per `slab_heating_rate` days; positive means K/s
+   integer :: slab_heating_level = 24
    
 !-----------------------------------------------------------------------
 
@@ -79,7 +83,8 @@ private
                               local_heating_vert_decay, local_heating_option,&
                               local_heating_file, relax_to_specified_wind,   &
                               u_wind_file, v_wind_file, equilibrium_t_option,&
-                              equilibrium_t_file
+                              equilibrium_t_file, slab_heating_rate,         &
+                              slab_heating_level, do_slab_heating
 
 !-----------------------------------------------------------------------
 
@@ -184,6 +189,10 @@ contains
         call local_heating ( Time, is, js, lon, lat, ps, p_full, p_half, ttnd )
         tdt = tdt + ttnd
         if (id_local_heating > 0) used = send_data ( id_local_heating, ttnd, Time, is, js)
+      endif
+
+      if(do_slab_heating) then
+        tdt(:,:,slab_heating_level) = tdt(:,:,slab_heating_level) + slab_heating_rate
       endif
 
       if (id_tdt > 0) used = send_data ( id_tdt, tdt, Time, is, js)
@@ -296,6 +305,10 @@ contains
         vkf = -1./(86400*kf)
       else
         vkf = kf
+      endif
+
+      if (slab_heating_rate < 0.) then
+        slab_heating_rate = -1./(86400*slab_heating_rate)
       endif
 
 !     ----- for tracers -----
