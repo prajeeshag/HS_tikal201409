@@ -72,6 +72,13 @@ private
    logical :: do_slab_heating = .false.
    real :: slab_heating_rate = 1e-5 ! negative means unit is 1 K per `slab_heating_rate` days; positive means K/s
    integer :: slab_heating_level = 24
+   logical :: do_local_slab_heating = .false.
+   real :: local_slab_heating_rate = 1e-5
+   integer :: local_slab_heating_level = 24
+   real :: local_slab_heating_x1 = 0.         ! degrees longitude start
+   real :: local_slab_heating_x2 = 360.       ! degrees longitude end
+   real :: local_slab_heating_y1 = 30.        ! degrees latitude start
+   real :: local_slab_heating_y2 = 60.        ! degrees latitude end
    
 !-----------------------------------------------------------------------
 
@@ -83,8 +90,13 @@ private
                               local_heating_vert_decay, local_heating_option,&
                               local_heating_file, relax_to_specified_wind,   &
                               u_wind_file, v_wind_file, equilibrium_t_option,&
-                              equilibrium_t_file, slab_heating_rate,         &
-                              slab_heating_level, do_slab_heating
+                              equilibrium_t_file,                            &
+                              do_slab_heating,                               & 
+                              slab_heating_rate, slab_heating_level,         &
+                              do_local_slab_heating,                         &
+                              local_slab_heating_rate, local_slab_heating_level, &
+                              local_slab_heating_x1, local_slab_heating_x2,  &
+                              local_slab_heating_y1, local_slab_heating_y2
 
 !-----------------------------------------------------------------------
 
@@ -97,6 +109,7 @@ private
    integer :: id_teq, id_tdt, id_udt, id_vdt, id_tdt_diss, id_diss_heat, id_local_heating, id_newtonian_damping
    real    :: missing_value = -1.e10
    real    :: xwidth, ywidth, xcenter, ycenter ! namelist values converted from degrees to radians
+   real    :: x1,x2,y1,y2 ! namelist valuse converted from degrees to radians
    real    :: srfamp ! local_heating_srfamp converted from deg/day to deg/sec
    character(len=14) :: mod_name = 'hs_forcing'
 
@@ -193,6 +206,16 @@ contains
 
       if(do_slab_heating) then
         tdt(:,:,slab_heating_level) = tdt(:,:,slab_heating_level) + slab_heating_rate
+      endif
+
+      x1  = local_slab_heating_x1*PI/180.
+      x2  = local_slab_heating_x2*PI/180.
+      y1 = local_slab_heating_y1*PI/180.
+      y2 = local_slab_heating_y2*PI/180.
+
+      if(do_local_slab_heating) then
+         call local_slab_heating ( Time, is, js, lon, lat, x1, x2, y1, y2, ttnd)
+         tdt = tdt+ttnd
       endif
 
       if (id_tdt > 0) used = send_data ( id_tdt, tdt, Time, is, js)
@@ -645,6 +668,23 @@ else
 endif
 
 end subroutine local_heating
+
+!---------------------------------------------------------------------
+subroutine local_slab_heating ( Time, is, js, lon, lat, x1, x2, y1, y2, tdt )
+
+type(time_type), intent(in)         :: Time
+integer, intent(in)                 :: is,js
+real, intent(in),  dimension(:,:)   :: lon, lat
+real, intent(in)                    :: x1,x2,y1,y2
+real, intent(out), dimension(:,:,:) :: tdt
+
+tdt(:,:,:)=0.
+where (lon(:,:)>=x1 .and. lon(:,:)<=x2 .and. lat(:,:)>=y1 .and. lat(:,:)<=y2)
+   tdt(:,:,local_slab_heating_level) = local_slab_heating_rate
+endwhere
+
+end subroutine local_slab_heating
+!---------------------------------------------------------------------
 
 !#######################################################################
 
